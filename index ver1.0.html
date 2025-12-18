@@ -3,7 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Christmas Gifts & Lights</title>
+    <title>a small Christmas gift 🎁</title>
+    
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="favicon.png">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -11,36 +19,102 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000000; font-family: 'Segoe UI', sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #000000; font-family: 'Be Vietnam Pro', 'Segoe UI', sans-serif; }
         #canvas-container { width: 100%; height: 100vh; display: block; }
         
-        #ui-layer {
-            position: absolute; bottom: 30px; width: 100%;
+        #intro-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
             text-align: center; pointer-events: none; z-index: 100;
+            background: rgba(0, 0, 0, 0.3);
+        }
+        
+        #start-banner {
+            width: 80%; max-width: 450px; height: auto;
+            border: 3px solid #FFFFFF; border-radius: 20px;
+            margin-bottom: 30px; box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+            object-fit: contain;
         }
         
         .badge {
             display: inline-block; background: rgba(0,0,0,0.7);
             border: 2px solid #FFD700; color: #FFD700;
-            padding: 10px 25px; border-radius: 50px;
-            font-size: 18px; font-weight: bold; margin-bottom: 10px;
-            text-transform: uppercase; letter-spacing: 1px;
-            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
-            text-shadow: 0 0 10px #FFD700;
+            padding: 15px 35px; border-radius: 50px;
+            font-size: 24px; font-weight: 700; margin-bottom: 40px;
+            text-transform: uppercase; letter-spacing: 2px;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
+            text-shadow: 0 0 15px #FFD700;
+            font-family: 'Be Vietnam Pro', sans-serif;
         }
 
-        .guide { color: #ccc; font-size: 13px; margin-bottom: 20px; text-shadow: 0 2px 4px black;}
+        .guide { color: #ccc; font-size: 13px; margin-bottom: 20px; text-shadow: 0 2px 4px black; font-family: 'Be Vietnam Pro', sans-serif;}
 
         button {
             pointer-events: auto; cursor: pointer;
             background: linear-gradient(to bottom, #D32F2F, #8B0000); 
             color: #FFF; border: 2px solid #FFD700;
-            padding: 15px 50px; border-radius: 30px; 
-            font-weight: 800; font-size: 16px;
+            padding: 18px 60px; border-radius: 30px; 
+            font-weight: 800; font-size: 18px;
             box-shadow: 0 0 30px rgba(255, 0, 0, 0.6);
             animation: pulse 1.5s infinite;
+            transition: transform 0.2s;
+            font-family: 'Be Vietnam Pro', sans-serif;
         }
+        button:hover { transform: scale(1.05); }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+        #loading-container {
+            position: absolute; bottom: 80px; width: 100%;
+            display: none; flex-direction: column; align-items: center;
+            pointer-events: none; z-index: 101;
+        }
+
+        #loading-bar-container {
+            width: 300px; height: 6px; background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px; overflow: hidden;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+        }
+
+        #loading-bar {
+            height: 100%; width: 0%; background: linear-gradient(90deg, #FFD700, #FFA500);
+            border-radius: 10px; transition: width 0.3s ease;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.8); }
+            50% { box-shadow: 0 0 25px rgba(255, 215, 0, 1); }
+            100% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.8); }
+        }
+
+        #loading-text {
+            color: #FFD700; font-size: 14px; margin-top: 12px;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+            font-weight: 600;
+            font-family: 'Be Vietnam Pro', sans-serif;
+        }
+
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 100;
+            display: none; /* Hidden initially, shown after camera is ready */
+        }
+        
+        #status {
+            position: absolute; top: 15px; left: 15px;
+            margin: 0;
+            font-size: 18px;
+            padding: 10px 25px;
+        }
+        
+        #ui-layer .guide {
+            position: absolute; bottom: 30px; left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            width: auto;
+        }
 
         #camera-preview {
             position: absolute; top: 15px; right: 15px;
@@ -55,12 +129,22 @@
 </head>
 <body>
     <div id="error-log"></div>
+    <div id="intro-screen">
+        <img id="start-banner" src="start banner.jpg" alt="Christmas Banner">
+        <div class="badge">🎄 GIÁNG SINH AN LÀNH 🎄</div>
+        <button id="btnStart" onclick="startSystem()">BẮT ĐẦU</button>
+    </div>
+    <div id="loading-container">
+        <div id="loading-bar-container">
+            <div id="loading-bar"></div>
+        </div>
+        <div id="loading-text">Đang khởi tạo camera...</div>
+    </div>
     <div id="ui-layer">
-        <div id="status" class="badge">🎄 Giang Sinh An Lanh 🎄</div>
+        <div id="status" class="badge">🎄 GIÁNG SINH AN LÀNH 🎄</div>
         <div class="guide">
             🖐 <b>Xòe:</b> Bung Quà & Đèn &nbsp;|&nbsp; ✌️ <b>Say Hi:</b> Xem ảnh &nbsp;|&nbsp; ✊ <b>Nắm:</b> Thu nhỏ cây
         </div>
-        <button id="btnStart" onclick="startSystem()">BẮT ĐẦU</button>
     </div>
 
     <div id="canvas-container"></div>
@@ -73,10 +157,10 @@
         // ==========================================
         const MUSIC_URL = "./audio.mp3";
         let bgMusic = new Audio(MUSIC_URL);
-        bgMusic.loop = true; bgMusic.volume = 1.0;
+        bgMusic.loop = true; bgMusic.volume = 0.6;
 
         const loader = new THREE.TextureLoader();
-        const photoFiles = ['./image1.jpeg', './image2.jpeg', './image3.jpeg', './image4.jpg', './image5.jpg'];
+        const photoFiles = ['./image1.jpeg', './image2.jpeg', './image3.jpeg', './image4.jpg', './image5.jpg', './image6.jpeg', './image7.jpeg'];
         const photoTextures = [];
         const photoAspectRatios = []; // Store aspect ratios for each image
         const photoMeshesRefs = []; // Store mesh references for updating geometries
@@ -278,7 +362,7 @@
             const borderMat = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); 
             const baseHeight = 8; // Base height for all images
 
-            for(let i=0; i<5; i++) {
+            for(let i=0; i<photoFiles.length; i++) {
                 // Create geometry with aspect ratio (default to 1:1 if not loaded yet)
                 const aspect = photoAspectRatios[i] || 1.0;
                 const width = baseHeight * aspect;
@@ -309,7 +393,7 @@
             const canvas = document.createElement('canvas');
             canvas.width = 1024; canvas.height = 256;
             const ctx = canvas.getContext('2d');
-            ctx.font = 'bold italic 90px "Times New Roman"';
+            ctx.font = '800 90px "Be Vietnam Pro", sans-serif';
             ctx.fillStyle = '#FFD700'; ctx.textAlign = 'center';
             ctx.shadowColor = "#FF0000"; ctx.shadowBlur = 40; 
             ctx.fillText("MERRY CHRISTMAS", 512, 130);
@@ -344,8 +428,24 @@
             const targetKey = (targetState === 'TREE') ? 'tree' : 'explode';
             const targets = group.geometry.userData[(targetState === 'PHOTO') ? 'explode' : targetKey];
 
-            for(let i=0; i<positions.length; i++) {
-                positions[i] += (targets[i] - positions[i]) * speed;
+            for(let i=0; i<positions.length; i += 3) {
+                // Update position towards target
+                positions[i] += (targets[i] - positions[i]) * speed;     // X
+                positions[i + 1] += (targets[i + 1] - positions[i + 1]) * speed; // Y
+                positions[i + 2] += (targets[i + 2] - positions[i + 2]) * speed; // Z
+                
+                // Add floating animation - always active (applied after lerp so it's always visible)
+                const particleIndex = i / 3;
+                const floatSpeed = 1.2; // Floating speed
+                const floatAmplitude = 4.0; // Increased amplitude for more visible floating
+                const phaseY = (particleIndex * 0.15) + (time * floatSpeed);
+                const phaseX = (particleIndex * 0.12) + (time * floatSpeed * 0.7); // Different phase for X
+                const phaseZ = (particleIndex * 0.18) + (time * floatSpeed * 0.9); // Different phase for Z
+                
+                // Apply floating offsets to all axes for more dynamic movement
+                positions[i] += Math.sin(phaseX) * floatAmplitude * 0.06; // X-axis floating
+                positions[i + 1] += Math.sin(phaseY) * floatAmplitude * 0.08; // Y-axis floating (vertical)
+                positions[i + 2] += Math.sin(phaseZ) * floatAmplitude * 0.06; // Z-axis floating
             }
             group.geometry.attributes.position.needsUpdate = true;
             
@@ -433,7 +533,7 @@
                 groupGift.renderOrder = 0;
                 
                 const baseAngle = groupGold.rotation.y; 
-                const angleStep = (Math.PI * 2) / 5;
+                const angleStep = (Math.PI * 2) / photoFiles.length;
                 let bestIdx = 0; let maxZ = -999;
 
                 photoMeshes.forEach((mesh, i) => {
@@ -491,7 +591,20 @@
         // 4. Vandiep
         // ==========================================
         function startSystem() {
-            document.getElementById('btnStart').style.display = 'none';
+            // Hide intro screen and show loading
+            document.getElementById('intro-screen').style.display = 'none';
+            document.getElementById('loading-container').style.display = 'flex';
+            const loadingBar = document.getElementById('loading-bar');
+            const loadingText = document.getElementById('loading-text');
+            
+            // Simulate loading progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 15 + 5; // Random increment between 5-20%
+                if (progress > 90) progress = 90; // Cap at 90% until camera is ready
+                loadingBar.style.width = progress + '%';
+            }, 200);
+            
             bgMusic.play().catch(e => console.log(e));
             init3D();
 
@@ -508,10 +621,21 @@
             slideCooldownUntil = 0;
             
             let frameCnt = 0;
+            let cameraReady = false;
             const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
             hands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.4, minTrackingConfidence: 0.4 });
 
             hands.onResults(results => {
+                // Camera is ready - complete loading
+                if (!cameraReady) {
+                    cameraReady = true;
+                    clearInterval(progressInterval);
+                    loadingBar.style.width = '100%';
+                    setTimeout(() => {
+                        document.getElementById('loading-container').style.display = 'none';
+                        document.getElementById('ui-layer').style.display = 'block'; // Show UI layer after camera is ready
+                    }, 500);
+                }
                 ctx.clearRect(0,0,180,135); ctx.drawImage(results.image, 0, 0, 180, 135);
 
                 if(results.multiHandLandmarks.length > 0) {
@@ -631,7 +755,7 @@
                         stateChangeCounter = 0;
                         lastState = 'TREE';
                         handVelocity = 0; // Reset velocity
-                        statusDiv.innerText = "🎄 Giang Sinh An Lanh 🎄"; statusDiv.style.color = "#FFF";
+                        statusDiv.innerText = "🎄 GIÁNG SINH AN LÀNH 🎄"; statusDiv.style.color = "#FFF";
                     } else {
                         // Keep current state and show warning
                         if (state !== 'TREE') {
@@ -646,9 +770,17 @@
                 onFrame: async () => {
                     frameCnt++; if(frameCnt%2 !== 0) return; // Process every 2nd frame for better responsiveness
                     await hands.send({image: video});
-                }, width: 320, height: 240
+                }, 
+                width: 320, 
+                height: 240
             });
-            cameraUtils.start();
+            cameraUtils.start().catch((error) => {
+                // Handle camera initialization error
+                clearInterval(progressInterval);
+                loadingText.textContent = 'Lỗi khởi tạo camera. Vui lòng thử lại.';
+                loadingText.style.color = '#FF4444';
+                console.error('Camera error:', error);
+            });
         }
 
         window.addEventListener('resize', () => {
