@@ -58,7 +58,7 @@
     <div id="ui-layer">
         <div id="status" class="badge">🎄 Giang Sinh An Lanh 🎄</div>
         <div class="guide">
-            🖐 <b>Xòe:</b> Bung Quà & Đèn &nbsp;|&nbsp; ✌️ <b>2 ngón:</b> Xem ảnh &nbsp;|&nbsp; ✊ <b>Nắm:</b> Thu cây
+            🖐 <b>Xòe:</b> Bung Quà & Đèn &nbsp;|&nbsp; ✌️ <b>Say Hi:</b> Xem ảnh &nbsp;|&nbsp; ✊ <b>Nắm:</b> Thu nhỏ cây
         </div>
         <button id="btnStart" onclick="startSystem()">BẮT ĐẦU</button>
     </div>
@@ -162,9 +162,9 @@
         // 2. Vandiep
         // ==========================================
         const CONFIG = {
-            goldCount: 2000,    // Hạt vàng
-            redCount: 300,      // Số lượng đèn đỏ
-            giftCount: 150,     // Số lượng hộp quà
+            goldCount: 1000,    // Hạt vàng (reduced for better performance)
+            redCount: 150,      // Số lượng đèn đỏ (reduced for better performance)
+            giftCount: 75,      // Số lượng hộp quà (reduced for better performance)
             explodeRadius: 65,  
             photoOrbitRadius: 25,
             treeHeight: 70,
@@ -200,9 +200,9 @@
             camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
             camera.position.z = 100;
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false }); // Disabled antialiasing for better performance
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Reduced pixel ratio for better performance
             container.appendChild(renderer.domElement);
 
             // Vandiep
@@ -381,10 +381,10 @@
                 if (distanceFromCenter < centerDeadZone) {
                     // In dead zone: reduce velocity accumulation significantly
                     handVelocity *= 0.7; // Faster decay when near center
-                    rotationAngle += handVelocity * 0.3; // Much less rotation in dead zone
+                    rotationAngle += handVelocity * 0.2; // Much less rotation in dead zone
                 } else {
                     // Outside dead zone: normal sliding
-                    rotationAngle += handVelocity * 3.0; // Reduced scale for slower, more controlled sliding
+                    rotationAngle += handVelocity * 1.8; // Reduced scale for slower, more controlled sliding
                     handVelocity *= 0.85; // Decay velocity (momentum)
                 }
                 // Remove position-based adjustment to prevent drift when returning to center
@@ -413,12 +413,24 @@
 
             if (state === 'TREE') {
                 titleMesh.visible = true; starMesh.visible = true;
+                groupGold.visible = true; // Show all particles in TREE state
+                groupRed.visible = true;
+                groupGift.visible = true;
+                groupGold.renderOrder = 0;
+                groupRed.renderOrder = 0;
+                groupGift.renderOrder = 0;
                 titleMesh.scale.lerp(new THREE.Vector3(1,1,1), 0.1);
                 starMesh.rotation.z -= 0.02;
-                photoMeshes.forEach(m => { m.scale.lerp(new THREE.Vector3(0,0,0), 0.1); m.visible = false; });
+                photoMeshes.forEach(m => { m.scale.lerp(new THREE.Vector3(0,0,0), 0.1); m.visible = false; m.renderOrder = 0; });
 
             } else if (state === 'EXPLODE') {
                 titleMesh.visible = false; starMesh.visible = false;
+                groupGold.visible = true; // Show all particles in EXPLODE state
+                groupRed.visible = true;
+                groupGift.visible = true;
+                groupGold.renderOrder = 0;
+                groupRed.renderOrder = 0;
+                groupGift.renderOrder = 0;
                 
                 const baseAngle = groupGold.rotation.y; 
                 const angleStep = (Math.PI * 2) / 5;
@@ -446,14 +458,28 @@
                 selectedIndex = bestIdx;
 
             } else if (state === 'PHOTO') {
+                // Keep particles visible but ensure photo renders on top
+                groupGold.visible = true;
+                groupRed.visible = true;
+                groupGift.visible = true;
+                
+                // Set render order so photo appears in front of particles
+                groupGold.renderOrder = 0;
+                groupRed.renderOrder = 0;
+                groupGift.renderOrder = 0;
+                
                 photoMeshes.forEach((mesh, i) => {
                     if (i === selectedIndex) {
-                        mesh.position.lerp(new THREE.Vector3(0, 0, 60), 0.1);
-                        mesh.scale.lerp(new THREE.Vector3(5, 5, 5), 0.1);
+                        // Position photo closer to camera (z=75) to ensure it's in front of all particles
+                        mesh.position.lerp(new THREE.Vector3(0, 0, 75), 0.1);
+                        mesh.scale.lerp(new THREE.Vector3(2.5, 2.5, 2.5), 0.1); // Reduced scale to prevent overflow
                         mesh.lookAt(camera.position);
                         mesh.rotation.z = 0;
+                        mesh.renderOrder = 100; // Higher render order to appear in front
+                        if (mesh.children[0]) mesh.children[0].renderOrder = 100; // Border also in front
                     } else {
                         mesh.scale.lerp(new THREE.Vector3(0,0,0), 0.1);
+                        mesh.renderOrder = 0;
                     }
                 });
             }
@@ -514,7 +540,7 @@
                             // Normal sliding: compute velocity, with less effect near center
                             const distanceFromCenter = Math.abs(rawHandX - 0.5);
                             const centerDeadZone = 0.05;
-                            const velocityScale = (distanceFromCenter < centerDeadZone) ? 0.3 : 1.5;
+                            const velocityScale = (distanceFromCenter < centerDeadZone) ? 0.2 : 1.0;
                             handVelocity = deltaX * velocityScale;
                         }
                     } else {
