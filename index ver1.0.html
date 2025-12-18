@@ -76,9 +76,44 @@
         bgMusic.loop = true; bgMusic.volume = 1.0;
 
         const loader = new THREE.TextureLoader();
-        const photoFiles = ['./image1.jpeg', './image2.jpeg', './image3.jpeg', './image4.jpeg', './image5.jpeg'];
+        const photoFiles = ['./image1.jpeg', './image2.jpeg', './image3.jpeg', './image4.jpg', './image5.jpg'];
         const photoTextures = [];
-        photoFiles.forEach((f, i) => photoTextures[i] = loader.load(f));
+        const photoAspectRatios = []; // Store aspect ratios for each image
+        const photoMeshesRefs = []; // Store mesh references for updating geometries
+        
+        // Load textures and calculate aspect ratios
+        photoFiles.forEach((f, i) => {
+            photoTextures[i] = loader.load(f, (texture) => {
+                // Calculate aspect ratio when texture loads
+                const aspect = texture.image.width / texture.image.height;
+                photoAspectRatios[i] = aspect;
+                
+                // Update geometry if mesh already exists
+                if (photoMeshesRefs[i]) {
+                    updatePhotoGeometry(i, aspect);
+                }
+            });
+        });
+        
+        function updatePhotoGeometry(index, aspect) {
+            const baseHeight = 8;
+            const width = baseHeight * aspect;
+            const borderMargin = 0.5;
+            
+            const mesh = photoMeshesRefs[index];
+            if (mesh) {
+                // Update main geometry
+                mesh.geometry.dispose();
+                mesh.geometry = new THREE.PlaneGeometry(width, baseHeight);
+                
+                // Update border geometry
+                const border = mesh.children[0];
+                if (border) {
+                    border.geometry.dispose();
+                    border.geometry = new THREE.PlaneGeometry(width + borderMargin * 2, baseHeight + borderMargin * 2);
+                }
+            }
+        }
 
         // --- Vandiep ---
         function createCustomTexture(type) {
@@ -240,11 +275,19 @@
         }
 
         function createPhotos() {
-            const geo = new THREE.PlaneGeometry(8, 8);
-            const borderGeo = new THREE.PlaneGeometry(9, 9); 
             const borderMat = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); 
+            const baseHeight = 8; // Base height for all images
 
             for(let i=0; i<5; i++) {
+                // Create geometry with aspect ratio (default to 1:1 if not loaded yet)
+                const aspect = photoAspectRatios[i] || 1.0;
+                const width = baseHeight * aspect;
+                const geo = new THREE.PlaneGeometry(width, baseHeight);
+                
+                // Border should match the image aspect ratio with a small margin
+                const borderMargin = 0.5;
+                const borderGeo = new THREE.PlaneGeometry(width + borderMargin * 2, baseHeight + borderMargin * 2);
+                
                 const mat = new THREE.MeshBasicMaterial({ 
                     map: photoTextures[i], side: THREE.DoubleSide 
                 });
@@ -257,6 +300,7 @@
                 mesh.scale.set(0,0,0);
                 scene.add(mesh);
                 photoMeshes.push(mesh);
+                photoMeshesRefs[i] = mesh; // Store reference for geometry updates
             }
         }
 
