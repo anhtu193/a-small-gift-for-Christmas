@@ -160,23 +160,84 @@
         bgMusic.loop = true; bgMusic.volume = 0.6;
 
         const loader = new THREE.TextureLoader();
-        const photoFiles = ['./image1.jpeg', './image2.jpeg', './image3.jpeg', './image4.jpg', './image5.jpg', './image6.jpeg', './image7.jpeg'];
+        let photoFiles = []; // Will be populated automatically
         const photoTextures = [];
         const photoAspectRatios = []; // Store aspect ratios for each image
         const photoMeshesRefs = []; // Store mesh references for updating geometries
+        let imagesReadyPromise = null; // Promise that resolves when images are discovered
         
-        // Load textures and calculate aspect ratios
-        photoFiles.forEach((f, i) => {
-            photoTextures[i] = loader.load(f, (texture) => {
-                // Calculate aspect ratio when texture loads
-                const aspect = texture.image.width / texture.image.height;
-                photoAspectRatios[i] = aspect;
+        // Function to automatically discover images from the images folder
+        async function discoverImages() {
+            const imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+            const maxAttempts = 100; // Try up to 100 images
+            const discoveredImages = [];
+            
+            // Try to load images with pattern: images/image1.jpg, images/image2.jpg, etc.
+            for (let i = 1; i <= maxAttempts; i++) {
+                let imageFound = false;
                 
-                // Update geometry if mesh already exists
-                if (photoMeshesRefs[i]) {
-                    updatePhotoGeometry(i, aspect);
+                // Try each extension for this number
+                for (const ext of imageExtensions) {
+                    const imagePath = `./images/image${i}.${ext}`;
+                    
+                    // Try to load the image to check if it exists
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const testImg = new Image();
+                            testImg.onload = () => {
+                                discoveredImages.push(imagePath);
+                                imageFound = true;
+                                resolve();
+                            };
+                            testImg.onerror = () => {
+                                reject();
+                            };
+                            testImg.src = imagePath;
+                        });
+                    } catch (e) {
+                        // Image doesn't exist with this extension, continue
+                    }
+                    
+                    if (imageFound) break; // Found image with this number, move to next
                 }
+                
+                // If no image found for this number after trying all extensions, stop
+                if (!imageFound && discoveredImages.length > 0) {
+                    // If we've found some images but this one doesn't exist, we've likely reached the end
+                    break;
+                }
+            }
+            
+            return discoveredImages;
+        }
+        
+        // Initialize image discovery and loading (start immediately when page loads)
+        imagesReadyPromise = discoverImages().then(discovered => {
+            photoFiles = discovered;
+            console.log(`Đã tìm thấy ${photoFiles.length} hình ảnh:`, photoFiles);
+            
+            // Load textures and calculate aspect ratios
+            photoFiles.forEach((f, i) => {
+                photoTextures[i] = loader.load(f, (texture) => {
+                    // Calculate aspect ratio when texture loads
+                    const aspect = texture.image.width / texture.image.height;
+                    photoAspectRatios[i] = aspect;
+                    
+                    // Update geometry if mesh already exists
+                    if (photoMeshesRefs[i]) {
+                        updatePhotoGeometry(i, aspect);
+                    }
+                }, undefined, (error) => {
+                    console.warn(`Không thể tải hình ảnh: ${f}`, error);
+                });
             });
+            
+            return photoFiles; // Return for promise chaining
+        }).catch(error => {
+            console.error('Lỗi khi tìm kiếm hình ảnh:', error);
+            // Fallback to empty array
+            photoFiles = [];
+            return photoFiles;
         });
         
         function updatePhotoGeometry(index, aspect) {
@@ -294,7 +355,10 @@
             groupRed = createParticleSystem('red', CONFIG.redCount, 3.5); // Vandiep
             groupGift = createParticleSystem('gift', CONFIG.giftCount, 3.0); // Vandiep
 
-            createPhotos();
+            // Wait for images to be discovered before creating photos
+            imagesReadyPromise.then(() => {
+                createPhotos();
+            });
             createDecorations();
             animate();
         }
@@ -359,6 +423,11 @@
         }
 
         function createPhotos() {
+            if (!photoFiles || photoFiles.length === 0) {
+                console.warn('Không có hình ảnh nào để tạo. Đang chờ tìm kiếm hình ảnh...');
+                return;
+            }
+            
             const borderMat = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); 
             const baseHeight = 8; // Base height for all images
 
@@ -533,7 +602,7 @@
                 groupGift.renderOrder = 0;
                 
                 const baseAngle = groupGold.rotation.y; 
-                const angleStep = (Math.PI * 2) / photoFiles.length;
+                const angleStep = photoFiles.length > 0 ? (Math.PI * 2) / photoFiles.length : 0;
                 let bestIdx = 0; let maxZ = -999;
 
                 photoMeshes.forEach((mesh, i) => {
