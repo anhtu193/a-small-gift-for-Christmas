@@ -1,4 +1,4 @@
-<img width="1366" height="599" alt="image" src="https://github.com/user-attachments/assets/170ff6da-5ced-4a69-bc0c-647fe3fa6953" />1 bản cải tiến so với bản opensource: https://github.com/bvd0101/giang_sinh_an_lanh
+1 bản cải tiến so với bản opensource: https://github.com/bvd0101/giang_sinh_an_lanh
 
 - Thêm các file hình vào folder /images
 - Enable Heart Gesture bằng flag enableHeartGesture trong CONFIG
