@@ -143,7 +143,7 @@
     <div id="ui-layer">
         <div id="status" class="badge">🎄 GIÁNG SINH AN LÀNH 🎄</div>
         <div class="guide">
-            🖐 <b>Xòe:</b> Bung Quà & Đèn &nbsp;|&nbsp; ✌️ <b>Say Hi:</b> Xem ảnh &nbsp;|&nbsp; ✊ <b>Nắm:</b> Thu nhỏ cây
+            🖐 <b>Xòe:</b> Bung Quà & Đèn &nbsp;|&nbsp; <span id="heart-guide">🫶 <b>Trái Tim:</b> Tình Yêu &nbsp;|&nbsp;</span> ✌️ <b>Say Hi:</b> Xem ảnh &nbsp;|&nbsp; ✊ <b>Nắm:</b> Thu nhỏ cây
         </div>
     </div>
 
@@ -164,81 +164,98 @@
         const photoTextures = [];
         const photoAspectRatios = []; // Store aspect ratios for each image
         const photoMeshesRefs = []; // Store mesh references for updating geometries
-        let imagesReadyPromise = null; // Promise that resolves when images are discovered
+        let imagesDiscovered = false;
+        let init3DCalled = false;
         
-        // Function to automatically discover images from the images folder
+        // Function to automatically discover images in the images folder
         async function discoverImages() {
-            const imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
-            const maxAttempts = 100; // Try up to 100 images
+            const imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+            const maxImagesToCheck = 50; // Check up to 50 images
             const discoveredImages = [];
             
-            // Try to load images with pattern: images/image1.jpg, images/image2.jpg, etc.
-            for (let i = 1; i <= maxAttempts; i++) {
-                let imageFound = false;
-                
-                // Try each extension for this number
+            // Function to check if an image exists
+            function checkImageExists(url) {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => resolve(true);
+                    img.onerror = () => resolve(false);
+                    img.src = url;
+                });
+            }
+            
+            // Try to discover images with different naming patterns
+            let consecutiveMisses = 0;
+            const maxConsecutiveMisses = 3; // Stop after 3 consecutive missing images
+            
+            for (let i = 1; i <= maxImagesToCheck; i++) {
+                let found = false;
                 for (const ext of imageExtensions) {
-                    const imagePath = `./images/image${i}.${ext}`;
+                    // Try different naming patterns
+                    const patterns = [
+                        `./images/image${i}.${ext}`,
+                        `./images/${i}.${ext}`,
+                        `./images/img${i}.${ext}`,
+                        `./images/photo${i}.${ext}`
+                    ];
                     
-                    // Try to load the image to check if it exists
-                    try {
-                        await new Promise((resolve, reject) => {
-                            const testImg = new Image();
-                            testImg.onload = () => {
-                                discoveredImages.push(imagePath);
-                                imageFound = true;
-                                resolve();
-                            };
-                            testImg.onerror = () => {
-                                reject();
-                            };
-                            testImg.src = imagePath;
-                        });
-                    } catch (e) {
-                        // Image doesn't exist with this extension, continue
+                    for (const url of patterns) {
+                        const exists = await checkImageExists(url);
+                        if (exists) {
+                            discoveredImages.push(url);
+                            found = true;
+                            consecutiveMisses = 0; // Reset miss counter
+                            break;
+                        }
                     }
-                    
-                    if (imageFound) break; // Found image with this number, move to next
+                    if (found) break;
                 }
                 
-                // If no image found for this number after trying all extensions, stop
-                if (!imageFound && discoveredImages.length > 0) {
-                    // If we've found some images but this one doesn't exist, we've likely reached the end
-                    break;
+                if (!found) {
+                    consecutiveMisses++;
+                    // Stop if we've missed too many consecutive images
+                    if (consecutiveMisses >= maxConsecutiveMisses && discoveredImages.length > 0) {
+                        break;
+                    }
                 }
             }
             
             return discoveredImages;
         }
         
-        // Initialize image discovery and loading (start immediately when page loads)
-        imagesReadyPromise = discoverImages().then(discovered => {
-            photoFiles = discovered;
-            console.log(`Đã tìm thấy ${photoFiles.length} hình ảnh:`, photoFiles);
-            
-            // Load textures and calculate aspect ratios
-            photoFiles.forEach((f, i) => {
-                photoTextures[i] = loader.load(f, (texture) => {
-                    // Calculate aspect ratio when texture loads
-                    const aspect = texture.image.width / texture.image.height;
-                    photoAspectRatios[i] = aspect;
-                    
-                    // Update geometry if mesh already exists
-                    if (photoMeshesRefs[i]) {
-                        updatePhotoGeometry(i, aspect);
-                    }
-                }, undefined, (error) => {
-                    console.warn(`Không thể tải hình ảnh: ${f}`, error);
+        // Function to load textures for discovered images
+        function loadDiscoveredImages(discovered) {
+            if (discovered.length > 0) {
+                photoFiles = discovered;
+                imagesDiscovered = true;
+                console.log(`Đã tìm thấy ${discovered.length} hình ảnh:`, discovered);
+                
+                // Load textures and calculate aspect ratios
+                photoFiles.forEach((f, i) => {
+                    photoTextures[i] = loader.load(f, (texture) => {
+                        // Calculate aspect ratio when texture loads
+                        const aspect = texture.image.width / texture.image.height;
+                        photoAspectRatios[i] = aspect;
+                        
+                        // Update geometry if mesh already exists
+                        if (photoMeshesRefs[i]) {
+                            updatePhotoGeometry(i, aspect);
+                        }
+                    }, undefined, (error) => {
+                        console.warn(`Không thể tải hình: ${f}`, error);
+                    });
                 });
-            });
-            
-            return photoFiles; // Return for promise chaining
-        }).catch(error => {
-            console.error('Lỗi khi tìm kiếm hình ảnh:', error);
-            // Fallback to empty array
-            photoFiles = [];
-            return photoFiles;
-        });
+                
+                // If init3D was already called, create photos now
+                if (init3DCalled && scene) {
+                    createPhotos();
+                }
+            } else {
+                console.warn('Không tìm thấy hình ảnh nào trong thư mục images/');
+            }
+        }
+        
+        // Start discovering images immediately when page loads
+        discoverImages().then(loadDiscoveredImages);
         
         function updatePhotoGeometry(index, aspect) {
             const baseHeight = 8;
@@ -307,21 +324,22 @@
         // 2. Vandiep
         // ==========================================
         const CONFIG = {
-            goldCount: 1000,    // Hạt vàng (reduced for better performance)
-            redCount: 150,      // Số lượng đèn đỏ (reduced for better performance)
-            giftCount: 75,      // Số lượng hộp quà (reduced for better performance)
+            goldCount: 750,     // Hạt vàng (further reduced for better performance)
+            redCount: 100,       // Số lượng đèn đỏ (further reduced for better performance)
+            giftCount: 50,      // Số lượng hộp quà (further reduced for better performance)
             explodeRadius: 65,  
             photoOrbitRadius: 25,
             treeHeight: 70,
-            treeBaseRadius: 35
+            treeBaseRadius: 35,
+            enableHeartGesture: true  // Set to false to disable heart gesture detection
         };
 
         let scene, camera, renderer;
         let groupGold, groupRed, groupGift; // Vandiep
         let photoMeshes = [];    
-        let titleMesh, starMesh;
+        let titleMesh, starMesh, loveMesh;
         
-        let state = 'TREE'; 
+        let state = 'TREE';  
         let selectedIndex = 0;
         let handX = 0.5;
         let stateChangeCounter = 0;
@@ -333,6 +351,7 @@
         let rotationAngle = 0; // Direct rotation angle for sliding
         let lockedRotationAngle = 0; // Locked rotation when viewing photo
         let slideCooldownUntil = 0; // Time until sliding is temporarily disabled after stopping
+        let heartDetectionCounter = 0; // Counter for heart gesture hysteresis
 
         // ==========================================
         // 3. Vandiep
@@ -355,10 +374,11 @@
             groupRed = createParticleSystem('red', CONFIG.redCount, 3.5); // Vandiep
             groupGift = createParticleSystem('gift', CONFIG.giftCount, 3.0); // Vandiep
 
-            // Wait for images to be discovered before creating photos
-            imagesReadyPromise.then(() => {
+            init3DCalled = true;
+            // Create photos if images are already discovered, otherwise it will be called when images are ready
+            if (imagesDiscovered) {
                 createPhotos();
-            });
+            }
             createDecorations();
             animate();
         }
@@ -367,6 +387,10 @@
             const pPositions = [];
             const pExplodeTargets = [];
             const pTreeTargets = [];
+            const pHeartTargets = [];
+            
+            // Pre-calculate heart shape only if enabled
+            const calculateHeart = CONFIG.enableHeartGesture;
             
             for(let i=0; i<count; i++) {
                 // --- Vandiep ---
@@ -399,13 +423,36 @@
                 const ez = rad * Math.cos(phi);
                 pExplodeTargets.push(ex, ey, ez);
 
+                // --- SOFT HEART Vandiep --- (only calculate if enabled)
+                if (calculateHeart) {
+                    const tHeart = Math.random() * Math.PI * 2;
+                    const sinT = Math.sin(tHeart);
+                    let hx = 16 * sinT * sinT * sinT; // Optimized: Math.pow(Math.sin(tHeart), 3) -> sinT^3
+                    let hy = 13 * Math.cos(tHeart) - 5 * Math.cos(2*tHeart) - 2 * Math.cos(3*tHeart) - Math.cos(4*tHeart);
+                    
+                    const rFill = Math.pow(Math.random(), 0.3); // Soft fill Vandiep
+                    hx *= rFill; hy *= rFill;
+                    let hz = (Math.random() - 0.5) * 8 * rFill; 
+                    
+                    const noise = 1.0;
+                    hx += (Math.random() - 0.5) * noise;
+                    hy += (Math.random() - 0.5) * noise;
+                    hz += (Math.random() - 0.5) * noise;
+
+                    const scaleH = 2.2;
+                    pHeartTargets.push(hx * scaleH, hy * scaleH + 5, hz);
+                } else {
+                    // Dummy values if heart is disabled
+                    pHeartTargets.push(0, 0, 0);
+                }
+
                 // Vandiep
                 pPositions.push(tx, y, tz);
             }
 
             const geo = new THREE.BufferGeometry();
             geo.setAttribute('position', new THREE.Float32BufferAttribute(pPositions, 3));
-            geo.userData = { tree: pTreeTargets, explode: pExplodeTargets };
+            geo.userData = { tree: pTreeTargets, explode: pExplodeTargets, heart: pHeartTargets };
 
             const mat = new THREE.PointsMaterial({
                 size: size,
@@ -423,10 +470,25 @@
         }
 
         function createPhotos() {
-            if (!photoFiles || photoFiles.length === 0) {
-                console.warn('Không có hình ảnh nào để tạo. Đang chờ tìm kiếm hình ảnh...');
+            // Don't create photos if no images discovered yet or scene not initialized
+            if (!imagesDiscovered || !scene || photoFiles.length === 0) {
                 return;
             }
+            
+            // Clear existing photo meshes if any (in case createPhotos is called multiple times)
+            photoMeshes.forEach(mesh => {
+                if (mesh.parent) {
+                    scene.remove(mesh);
+                    mesh.geometry.dispose();
+                    mesh.material.dispose();
+                    if (mesh.children[0]) {
+                        mesh.children[0].geometry.dispose();
+                        mesh.children[0].material.dispose();
+                    }
+                }
+            });
+            photoMeshes.length = 0; // Clear array
+            photoMeshesRefs.length = 0; // Clear array
             
             const borderMat = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); 
             const baseHeight = 8; // Base height for all images
@@ -490,31 +552,51 @@
             starMesh = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), starMat);
             starMesh.position.set(0, CONFIG.treeHeight/2 + 2, 0);
             scene.add(starMesh);
+
+            // I LOVE YOU TEXT Vandiep
+            const loveCanvas = document.createElement('canvas');
+            loveCanvas.width = 1024; loveCanvas.height = 256;
+            const lCtx = loveCanvas.getContext('2d');
+            lCtx.font = 'bold 120px "Be Vietnam Pro", sans-serif';
+            lCtx.fillStyle = '#FF69B4'; lCtx.textAlign = 'center';
+            lCtx.shadowColor = "#FF1493"; lCtx.shadowBlur = 40; 
+            lCtx.fillText("I LOVE YOU ❤️", 512, 130);
+            const loveTex = new THREE.CanvasTexture(loveCanvas);
+            const loveMat = new THREE.MeshBasicMaterial({ map: loveTex, transparent: true, blending: THREE.AdditiveBlending });
+            loveMesh = new THREE.Mesh(new THREE.PlaneGeometry(70, 18), loveMat);
+            loveMesh.position.set(0, 0, 20);
+            loveMesh.visible = false;
+            scene.add(loveMesh);
         }
 
         function updateParticleGroup(group, targetState, speed, handRotY, time, isBlinking) {
             const positions = group.geometry.attributes.position.array;
-            const targetKey = (targetState === 'TREE') ? 'tree' : 'explode';
+            const targetKey = (targetState === 'TREE') ? 'tree' : (targetState === 'HEART' ? 'heart' : 'explode');
             const targets = group.geometry.userData[(targetState === 'PHOTO') ? 'explode' : targetKey];
 
+            // Optimize: only apply floating animation in TREE state for better performance
+            const applyFloating = (targetState === 'TREE');
+            
             for(let i=0; i<positions.length; i += 3) {
                 // Update position towards target
                 positions[i] += (targets[i] - positions[i]) * speed;     // X
                 positions[i + 1] += (targets[i + 1] - positions[i + 1]) * speed; // Y
                 positions[i + 2] += (targets[i + 2] - positions[i + 2]) * speed; // Z
                 
-                // Add floating animation - always active (applied after lerp so it's always visible)
-                const particleIndex = i / 3;
-                const floatSpeed = 1.2; // Floating speed
-                const floatAmplitude = 4.0; // Increased amplitude for more visible floating
-                const phaseY = (particleIndex * 0.15) + (time * floatSpeed);
-                const phaseX = (particleIndex * 0.12) + (time * floatSpeed * 0.7); // Different phase for X
-                const phaseZ = (particleIndex * 0.18) + (time * floatSpeed * 0.9); // Different phase for Z
-                
-                // Apply floating offsets to all axes for more dynamic movement
-                positions[i] += Math.sin(phaseX) * floatAmplitude * 0.06; // X-axis floating
-                positions[i + 1] += Math.sin(phaseY) * floatAmplitude * 0.08; // Y-axis floating (vertical)
-                positions[i + 2] += Math.sin(phaseZ) * floatAmplitude * 0.06; // Z-axis floating
+                // Add floating animation - only in TREE state to reduce calculations
+                if (applyFloating) {
+                    const particleIndex = i / 3;
+                    const floatSpeed = 1.2; // Floating speed
+                    const floatAmplitude = 4.0; // Increased amplitude for more visible floating
+                    const phaseY = (particleIndex * 0.15) + (time * floatSpeed);
+                    const phaseX = (particleIndex * 0.12) + (time * floatSpeed * 0.7); // Different phase for X
+                    const phaseZ = (particleIndex * 0.18) + (time * floatSpeed * 0.9); // Different phase for Z
+                    
+                    // Apply floating offsets to all axes for more dynamic movement
+                    positions[i] += Math.sin(phaseX) * floatAmplitude * 0.06; // X-axis floating
+                    positions[i + 1] += Math.sin(phaseY) * floatAmplitude * 0.08; // Y-axis floating (vertical)
+                    positions[i + 2] += Math.sin(phaseZ) * floatAmplitude * 0.06; // Z-axis floating
+                }
             }
             group.geometry.attributes.position.needsUpdate = true;
             
@@ -530,6 +612,10 @@
                 } else {
                     group.scale.set(1,1,1);
                 }
+            } else if (targetState === 'HEART') {
+                group.rotation.y = 0;
+                const beatScale = 1 + Math.abs(Math.sin(time * 3)) * 0.15;
+                group.scale.set(beatScale, beatScale, beatScale);
             } else {
                 group.scale.set(1,1,1);
                 group.rotation.y += (handRotY - group.rotation.y) * 0.12; // More responsive rotation
@@ -581,7 +667,7 @@
             });
 
             if (state === 'TREE') {
-                titleMesh.visible = true; starMesh.visible = true;
+                titleMesh.visible = true; starMesh.visible = true; loveMesh.visible = false;
                 groupGold.visible = true; // Show all particles in TREE state
                 groupRed.visible = true;
                 groupGift.visible = true;
@@ -592,8 +678,14 @@
                 starMesh.rotation.z -= 0.02;
                 photoMeshes.forEach(m => { m.scale.lerp(new THREE.Vector3(0,0,0), 0.1); m.visible = false; m.renderOrder = 0; });
 
+            } else if (state === 'HEART') {
+                titleMesh.visible = false; starMesh.visible = false; loveMesh.visible = true;
+                photoMeshes.forEach(m => { m.visible = false; });
+                const s = 1 + Math.abs(Math.sin(time*3))*0.1;
+                loveMesh.scale.set(s,s,1);
+
             } else if (state === 'EXPLODE') {
-                titleMesh.visible = false; starMesh.visible = false;
+                titleMesh.visible = false; starMesh.visible = false; loveMesh.visible = false;
                 groupGold.visible = true; // Show all particles in EXPLODE state
                 groupRed.visible = true;
                 groupGift.visible = true;
@@ -627,6 +719,7 @@
                 selectedIndex = bestIdx;
 
             } else if (state === 'PHOTO') {
+                loveMesh.visible = false;
                 // Keep particles visible but ensure photo renders on top
                 groupGold.visible = true;
                 groupRed.visible = true;
@@ -676,6 +769,11 @@
             
             bgMusic.play().catch(e => console.log(e));
             init3D();
+            
+            // Hide heart gesture guide if disabled
+            if (!CONFIG.enableHeartGesture) {
+                document.getElementById('heart-guide').style.display = 'none';
+            }
 
             const video = document.getElementsByClassName('input_video')[0];
             const canvas = document.getElementById('camera-preview');
@@ -692,7 +790,12 @@
             let frameCnt = 0;
             let cameraReady = false;
             const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-            hands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.4, minTrackingConfidence: 0.4 });
+            hands.setOptions({ 
+                maxNumHands: CONFIG.enableHeartGesture ? 2 : 1, 
+                modelComplexity: 0, 
+                minDetectionConfidence: 0.4, 
+                minTrackingConfidence: 0.4 
+            });
 
             hands.onResults(results => {
                 // Camera is ready - complete loading
@@ -706,6 +809,61 @@
                     }, 500);
                 }
                 ctx.clearRect(0,0,180,135); ctx.drawImage(results.image, 0, 0, 180, 135);
+
+                // --- Hand Logic - Heart Gesture Detection ---
+                if (CONFIG.enableHeartGesture) {
+                    let heartDetected = false;
+                    if (results.multiHandLandmarks.length === 2) {
+                        const h1 = results.multiHandLandmarks[0]; 
+                        const h2 = results.multiHandLandmarks[1];
+                        
+                        // Check distance between index fingertips (landmark 8)
+                        const distIndex = Math.hypot(h1[8].x - h2[8].x, h1[8].y - h2[8].y);
+                        // Check distance between thumb tips (landmark 4)
+                        const distThumb = Math.hypot(h1[4].x - h2[4].x, h1[4].y - h2[4].y);
+                        
+                        // More strict heart detection: require both index and thumb to be close
+                        // Also check that hands are roughly at the same vertical level (heart shape is symmetric)
+                        const verticalDiff = Math.abs(h1[8].y - h2[8].y);
+                        
+                        if (distIndex < 0.12 && distThumb < 0.12 && verticalDiff < 0.15) {
+                            heartDetected = true;
+                        }
+                    }
+                    
+                    // Apply hysteresis to heart detection to prevent false positives
+                    const HEART_HYSTERESIS = 5; // Require 5 consecutive frames for heart detection
+                    if (heartDetected) {
+                        heartDetectionCounter++;
+                        if (heartDetectionCounter >= HEART_HYSTERESIS) {
+                            // Heart gesture confirmed - set state and exit early
+                            if (state !== 'HEART') {
+                                state = 'HEART';
+                                stateChangeCounter = 0;
+                                lastState = 'HEART';
+                            }
+                            statusDiv.innerText = "🫶 Trái Tim Tình Yêu"; 
+                            statusDiv.style.color = "#FF69B4";
+                            return; // Exit early when heart is confirmed
+                        } else {
+                            // Still counting frames, don't change state yet but also don't process single-hand gestures
+                            return;
+                        }
+                    } else {
+                        // Heart not detected - reset counter
+                        heartDetectionCounter = 0;
+                        // If we were in HEART state, allow transition back via single-hand detection below
+                        // Don't force state change here, let single-hand detection handle it
+                    }
+                } else {
+                    // Heart gesture disabled - reset counter if it was active
+                    heartDetectionCounter = 0;
+                    if (state === 'HEART') {
+                        state = 'TREE';
+                        stateChangeCounter = 0;
+                        lastState = 'TREE';
+                    }
+                }
 
                 if(results.multiHandLandmarks.length > 0) {
                     handLastSeen = true;
@@ -800,6 +958,8 @@
                     // Update status display
                     if (state === 'TREE') {
                         statusDiv.innerText = "✊ Thu Cây Thông"; statusDiv.style.color = "#FFD700";
+                    } else if (state === 'HEART') {
+                        statusDiv.innerText = "🫶 Trái Tim Tình Yêu"; statusDiv.style.color = "#FF69B4";
                     } else if (state === 'PHOTO') {
                         statusDiv.innerText = "✌️ Xem Ảnh"; statusDiv.style.color = "#00FFFF";
                     } else {
@@ -837,7 +997,10 @@
 
             const cameraUtils = new Camera(video, {
                 onFrame: async () => {
-                    frameCnt++; if(frameCnt%2 !== 0) return; // Process every 2nd frame for better responsiveness
+                    frameCnt++; 
+                    // Process every 3rd frame when heart gesture is enabled (2 hands = more processing)
+                    const skipFrames = CONFIG.enableHeartGesture ? 3 : 2;
+                    if(frameCnt % skipFrames !== 0) return; 
                     await hands.send({image: video});
                 }, 
                 width: 320, 
